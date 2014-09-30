@@ -5,14 +5,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
-import java.util.Random;
 import java.util.logging.Logger;
 
 import javax.inject.Inject;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 
-import org.infinispan.Cache;
 import org.jboss.arquillian.container.test.api.Deployment;
 import org.jboss.arquillian.junit.Arquillian;
 import org.jboss.arquillian.junit.InSequence;
@@ -24,6 +22,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.acme.todo.model.Task;
+import com.acme.todo.model.TaskGroup;
 import com.acme.todo.model.User;
 
 @RunWith(Arquillian.class)
@@ -35,13 +34,17 @@ public class TaskServiceTest {
 	private TaskService taskservice;
 	
 	@Inject
-	UserService userService;
+	@DefaultUser
+	User defaultUser;
 	
 	@PersistenceContext
     EntityManager em;
 	
+//	@Inject
+//	Cache<String, User> cache;
+	
 	@Inject
-	Cache<String, User> cache;
+	TaskService taskService;
 	
 	
 	@Deployment
@@ -51,11 +54,12 @@ public class TaskServiceTest {
 				.create(WebArchive.class, "todo-test.war")
 				.addClass(Config.class)
 				.addClass(Task.class)
+				.addClass(TaskGroup.class)
 				.addClass(TaskService.class)
 				.addClass(User.class)
 				.addClass(DefaultUser.class)
 				.addClass(UserService.class)
-				.addAsResource("import.sql")
+				//.addAsResource("import.sql")
 				.addAsResource("META-INF/persistence.xml",
 						"META-INF/persistence.xml")
 			    .addAsWebInfResource(new File("src/main/webapp/WEB-INF/jboss-deployment-structure.xml"))
@@ -86,7 +90,15 @@ public class TaskServiceTest {
 		taskservice.insert(task);
 		Assert.assertEquals(orgsize+1, taskservice.findAll().size());
 		
+		Task task2 = new Task();
+		task2.setTitle("This is another test task");
+		task2.setCreatedOn(new Date());
+		
+		taskservice.insert(task2);
+		Assert.assertEquals(orgsize+2, taskservice.findAll().size());
+		
 		taskservice.delete(task);
+		taskservice.delete(task2);
 		Assert.assertEquals(orgsize, taskservice.findAll().size());
 	}
 
@@ -102,12 +114,16 @@ public class TaskServiceTest {
 
 		log.info("###### Inserted task with id " + task.getId());
 		task.setDone(true);
-		task.setCompletedOn(new Date());
-		taskservice.update(task);
-		Assert.assertEquals(orgsize+1, taskservice.findAll().size());
-		Assert.assertNotNull(task.getCompletedOn());
-		Assert.assertEquals(true,task.isDone());
+		Date taskUpdatedDate = new Date();
+		task.setCompletedOn(taskUpdatedDate);
+		taskservice.update(task);	
 		
+		for (Task listTask : taskservice.findAll()) {
+			if("This is the second test task".equals(listTask.getTitle())) {
+				Assert.assertEquals(true,listTask.isDone());
+				Assert.assertNotNull(listTask.getCompletedOn());
+			}
+		}
 		taskservice.delete(task);
 		Assert.assertEquals(orgsize, taskservice.findAll().size());
 	}
@@ -115,28 +131,21 @@ public class TaskServiceTest {
 	@Test
 	@InSequence(5)
 	public void testReadPerformance() {
-	
-		
+		List<Task> taskList = new ArrayList<Task>();
 		// Create 500 tasks
-		for (int i = 0; i < 500; i++) {
-			User user = new User();
-			user.setUsername("testuser" + i);
-			List<Task> taskList = new ArrayList<Task>();
-			taskList.add(generateTestTasks("Some data may be used in a confirmatory way, typically to verify ...t",true));
-			taskList.add(generateTestTasks("program or function that aids the tester",true));
-			taskList.add(generateTestTasks("family of test techniques that focus on the test data",true));
-			taskList.add(generateTestTasks("Software testing is an important part of the Software Development Life Cycle",true));
-			user.setTasks(taskList);
-			userService.createUser(user);
-		
+		for (int i = 0; i < 50; i++) {
+			taskList.add(generateTestTasks("Test data are some data may be used in a confirmatory way, typically to verify... " + i,true));		
 		}
 		
-		Random r = new Random(System.currentTimeMillis());
+		defaultUser.getDefaultTaskGroup().setGroupTasks(taskList);
+		
+		//Random r = new Random(System.currentTimeMillis());
 		long startTime = System.currentTimeMillis();
 	
 		//Execute 1000 reads
 		for (int i = 0; i < 1000; i++) {
-			cache.get("testuser" + r.nextInt(500));
+			taskList = defaultUser.getDefaultTaskGroup().getGroupTasks();
+			log.info("Retrived task list of size " + taskList.size());
 			
 		}
 		long stopTime = System.currentTimeMillis();

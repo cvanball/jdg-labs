@@ -14,7 +14,6 @@ import javax.ejb.TransactionAttributeType;
 import javax.inject.Inject;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
-import javax.persistence.criteria.CriteriaQuery;
 
 import org.infinispan.Cache;
 
@@ -55,7 +54,17 @@ public class TaskService {
 	 *         DONE: Replace implementation with Cache.values()
 	 */
 	public Collection<Task> findAll() {
-		List<Task> tasks = cache.get(currentUser.getUsername()).getTasks();
+		User user = cache.get(currentUser.getUsername());
+		if(user==null) {
+			user = em.find(User.class, currentUser.getUsername());
+			if(user!=null) {
+				cache.put(currentUser.getUsername(), user);
+			} else {
+				throw new RuntimeException("Failed to find user with username " + currentUser.getUsername());
+			}
+		}
+		List<Task> tasks = user.getDefaultTaskGroup().getGroupTasks();
+		
 		Collections.sort(tasks, new Comparator<Task>() {
 			@Override
 			public int compare(Task o1, Task o2) {
@@ -83,9 +92,14 @@ public class TaskService {
 		if(task.getCreatedOn()==null) {
 			task.setCreatedOn(new Date());
 		}
+		if(task.getGroup()==null) {
+			task.setGroup(currentUser.getDefaultTaskGroup());
+		}
 		em.persist(task);
-		currentUser.getTasks().add(task);
-		cache.replace(currentUser.getUsername(), currentUser);
+		
+		User user = cache.get(currentUser.getUsername());
+		user.getDefaultTaskGroup().getGroupTasks().add(task);
+		cache.replace(user.getUsername(), user);
 	}
 
 	/**
@@ -97,13 +111,25 @@ public class TaskService {
 	 *            Cache
 	 */
 	public void update(Task task) {
-		Task t2 = em.merge(task);
-		int index = currentUser.getTasks().indexOf(task);
-		currentUser.getTasks().set(index, t2);
-		em.detach(t2);
-		cache.replace(currentUser.getUsername(), currentUser);
-	}
+		task.setGroup(currentUser.getDefaultTaskGroup());
+		Task mergedTask = em.merge(task);
+		em.detach(mergedTask);
 
+		User user = cache.get(currentUser.getUsername());
+		List<Task> groupTasks = user.getDefaultTaskGroup().getGroupTasks();
+		int index = groupTasks.indexOf(mergedTask);
+		if(index==-1)
+			throw new RuntimeException("Cannot find the task to update in existing groupTasks");
+		groupTasks.set(index, mergedTask);
+		
+//		List<Task> groupTasks = currentUser.getDefaultTaskGroup().getGroupTasks();
+//		int index = groupTasks.indexOf(t2);
+//		if(index==-1)
+//			throw new RuntimeException("Cannot find the task to update in existing groupTasks");
+//		groupTasks.set(index, t2);
+//		cache.replace(currentUser.getUsername(), currentUser);
+	}
+//
 	/**
 	 * This method deletes an Task from the persistence store
 	 * 
@@ -113,8 +139,30 @@ public class TaskService {
 	 *            Cache
 	 */
 	public void delete(Task task) {
-		currentUser.getTasks().remove(task);	
-		cache.replace(currentUser.getUsername(), currentUser);
+		User user = cache.get(currentUser.getUsername());
+		List<Task> groupTasks = user.getDefaultTaskGroup().getGroupTasks();
+		int index = groupTasks.indexOf(task);
+		if(index==-1)
+			throw new RuntimeException("Cannot find the task to delete in existing groupTasks");
+		groupTasks.remove(index);
+		cache.replace(user.getUsername(), user);
+//		currentUser.getDefaultTaskGroup().getGroupTasks().remove(task);
+		em.remove(em.find(Task.class, task.getId()));
+//		cache.replace(currentUser.getUsername(), currentUser);
+	}
+	
+	/**
+	 * This method deletes an Task from the persistence store
+	 * 
+	 * @param task
+	 * 
+	 *            DONE: Add implementation to also delete the object from the
+	 *            Cache
+	 */
+	public void delete(Long taskId) {
+		Task t0 = new Task();
+		t0.setId(taskId);
+		delete(t0);
 	}
 
 	/**

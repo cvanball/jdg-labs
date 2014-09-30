@@ -6,12 +6,16 @@ import java.util.Date;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.ManyToOne;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
 import javax.persistence.Version;
+
+import org.codehaus.jackson.annotate.JsonIgnore;
 
 @Entity
 public class Task implements Serializable {
@@ -20,8 +24,12 @@ public class Task implements Serializable {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.AUTO)
-	@Column(name = "id", updatable = false, nullable = false)
+	@Column(name = "id", updatable = true, nullable = false)
 	private Long id;
+	
+	@ManyToOne(fetch=FetchType.LAZY)
+	@JsonIgnore //To avoid infinity loop in parsing Json.
+	private TaskGroup group;
 	
 	@Version
 	@Column(name = "version")
@@ -110,6 +118,16 @@ public class Task implements Serializable {
 
 	public void setCompletedOn(Date completedOn) {
 		this.completedOn = completedOn;
+	}
+	
+	
+
+	public TaskGroup getGroup() {
+		return group;
+	}
+
+	public void setGroup(TaskGroup group) {
+		this.group = group;
 	}
 
 	@Override

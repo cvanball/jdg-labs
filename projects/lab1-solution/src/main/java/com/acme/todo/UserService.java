@@ -11,6 +11,7 @@ import javax.persistence.PersistenceContext;
 
 import org.infinispan.Cache;
 
+import com.acme.todo.model.TaskGroup;
 import com.acme.todo.model.User;
 
 @Stateless
@@ -23,8 +24,8 @@ public class UserService {
 	@PersistenceContext
 	EntityManager em;
 	
-	@Inject
-	Cache<String, User> cache;
+//	@Inject
+//	Cache<String, User> cache;
 
 	/**
 	 * This metod produces a default user for labs, please note this behavior is
@@ -40,7 +41,8 @@ public class UserService {
 		// First try to find a user in the database
 
 		log.info("### Getting default user from the database");
-		User defaultUser = cache.get(DEFAULT_USERNAME);
+		User defaultUser=null;
+//		User defaultUser = cache.get(DEFAULT_USERNAME);
 		
 		if (defaultUser==null) {
 			defaultUser = getUserFromUsername(DEFAULT_USERNAME);
@@ -48,7 +50,7 @@ public class UserService {
 			if (defaultUser == null) {
 				defaultUser = createDefaultUser();
 			}
-			cache.put(defaultUser.getUsername(), defaultUser);
+//			cache.put(defaultUser.getUsername(), defaultUser);
 		}
 		return defaultUser;
 	}
@@ -57,6 +59,9 @@ public class UserService {
 		log.info("### Creating a default user");
 		User defaultUser = new User();
 		defaultUser.setUsername(DEFAULT_USERNAME);
+		TaskGroup defaultTaskGroup = new TaskGroup(DEFAULT_USERNAME + "#default");
+		em.persist(defaultTaskGroup);
+		defaultUser.getTaskGroups().add(defaultTaskGroup);		
 		em.persist(defaultUser);
 		return defaultUser;
 	}
@@ -67,7 +72,7 @@ public class UserService {
 	
 	public void createUser(User user) {
 		em.persist(user);
-		cache.put(user.getUsername(),user);
+//		cache.put(user.getUsername(),user);
 	}
 
 }

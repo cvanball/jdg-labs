@@ -9,7 +9,9 @@ import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.FetchType;
 import javax.persistence.Id;
+import javax.persistence.JoinColumn;
 import javax.persistence.OneToMany;
+import javax.persistence.OneToOne;
 import javax.persistence.Version;
 
 @Entity
@@ -24,9 +26,14 @@ public class User implements Serializable {
 	@Version
 	@Column(name = "version")
 	private int version = 0;
+	
+	@OneToMany(fetch = FetchType.EAGER,cascade = CascadeType.MERGE)
+	@JoinColumn(name="USERNAME_FK")
+	private List<TaskGroup> taskGroups = new ArrayList<TaskGroup>();
+	
 
-	@OneToMany(fetch = FetchType.EAGER,cascade = CascadeType.ALL)
-	private List<Task> tasks = new ArrayList<Task>();
+	public User() {
+	}
 
 	public String getUsername() {
 		return username;
@@ -34,6 +41,15 @@ public class User implements Serializable {
 
 	public void setUsername(String username) {
 		this.username = username;
+	}
+
+	
+	public TaskGroup getDefaultTaskGroup() {
+		for (TaskGroup t : this.taskGroups) {
+			if(t.getName().endsWith("#default"))
+				return t;
+		}
+		return null;
 	}
 
 	public int getVersion() {
@@ -77,11 +93,12 @@ public class User implements Serializable {
 		return super.hashCode();
 	}
 
-	public List<Task> getTasks() {
-		return this.tasks;
+	public List<TaskGroup> getTaskGroups() {
+		return this.taskGroups;
 	}
 
-	public void setTasks(final List<Task> tasks) {
-		this.tasks = tasks;
+	public void setTaskGroups(final List<TaskGroup> taskGroups) {
+		this.taskGroups = taskGroups;
 	}
+
 }
